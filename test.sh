@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
-expected_queue_url="http://localhost:4566/000000000000/sqs-fargate-queue"
+expected_queue_url="http://sqs.us-east-1.localhost.localstack.cloud:4566/000000000000/sqs-fargate-queue"
 expected_db="sqs-fargate-ddb-table"
 source assert.sh/assert.sh
 
