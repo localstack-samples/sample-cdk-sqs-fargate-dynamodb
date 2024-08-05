@@ -47,7 +47,7 @@ Here are instructions to deploy and test it manually step-by-step.
 Before starting the LocalStack container, configure the following environment variables which act as configurations for the LocalStack container:
 
 ```bash
-export LOCALSTACK_API_KEY=<your_api_key>
+export LOCALSTACK_AUTH_TOKEN=<your-auth-token>
 export SQS_QUEUE="sqs-fargate-queue"
 export NETWORK_NAME="localstack-shared-net"
 ```
