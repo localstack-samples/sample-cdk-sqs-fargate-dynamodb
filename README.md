@@ -38,16 +38,6 @@ The following diagram shows the architecture that this sample application builds
 - [AWS CLI](https://docs.localstack.cloud/user-guide/integrations/aws-cli/) with the [`awslocal` wrapper](https://docs.localstack.cloud/user-guide/integrations/aws-cli/#localstack-aws-cli-awslocal).
 - [Node.js](https://nodejs.org/en/download)
 
-## Start LocalStack
-
-Start LocalStack with the `LOCALSTACK_AUTH_TOKEN` pre-configured:
-
-```bash
-export LOCALSTACK_AUTH_TOKEN=<your-auth-token>
-make start
-make ready
-```
-
 ## Instructions
 
 You can build and deploy the sample application on LocalStack by running `make run`.
@@ -58,7 +48,6 @@ Here are instructions to deploy and test it manually step-by-step.
 Before starting the LocalStack container, configure the following environment variables which act as configurations for the LocalStack container:
 
 ```bash
-export LOCALSTACK_AUTH_TOKEN=<your-auth-token>
 export SQS_QUEUE="sqs-fargate-queue"
 export NETWORK_NAME="localstack-shared-net"
 ```
@@ -73,9 +62,10 @@ docker network create $NETWORK_NAME
 
 This network is required for the Fargate ECS container to be able to [use LocalStack services from the running Docker container](https://docs.localstack.cloud/references/network-troubleshooting/endpoint-url/#from-your-container).
 
-Run the following command to start the LocalStack container:
+Run the following command to start the LocalStack container with your `LOCALSTACK_AUTH_TOKEN`:
 
 ```bash
+export LOCALSTACK_AUTH_TOKEN=<your-auth-token>
 LAMBDA_DOCKER_NETWORK=$NETWORK_NAME DOCKER_FLAGS="--network $NETWORK_NAME" DEBUG=1 localstack start -d
 ```
 
