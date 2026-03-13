@@ -3,7 +3,7 @@ export AWS_SECRET_ACCESS_KEY ?= test
 export AWS_DEFAULT_REGION=us-east-1
 SHELL := /bin/bash
 
-.PHONY: install init build build_docker test deploy start-ls stop-ls start stop ready logs
+.PHONY: install init build build_docker test deploy start stop ready logs
 
 .EXPORT_ALL_VARIABLES:
 GOPROXY = direct
@@ -28,10 +28,6 @@ deploy: build_docker
 	cdklocal bootstrap;\
 	cdklocal deploy ---require-approval never
 
-start:		## Start LocalStack
-	@test -n "${LOCALSTACK_AUTH_TOKEN}" || (echo "LOCALSTACK_AUTH_TOKEN is not set. Find your token at https://app.localstack.cloud/workspace/auth-token"; exit 1)
-	@LOCALSTACK_AUTH_TOKEN=$(LOCALSTACK_AUTH_TOKEN) localstack start -d
-
 stop:		## Stop LocalStack
 	@localstack stop
 
@@ -42,18 +38,15 @@ ready:		## Wait until LocalStack is ready
 logs:		## Save the logs in a separate file
 	@localstack logs > logs.txt
 
-start-ls:
+start:
 	@test -n "${LOCALSTACK_AUTH_TOKEN}" || (echo "LOCALSTACK_AUTH_TOKEN is not set. Find your token at https://app.localstack.cloud/workspace/auth-token"; exit 1)
 	-docker network create $(NETWORK_NAME) 2> /dev/null;
 	LOCALSTACK_AUTH_TOKEN=$(LOCALSTACK_AUTH_TOKEN) LAMBDA_DOCKER_NETWORK=$(NETWORK_NAME) DOCKER_FLAGS="--network $(NETWORK_NAME)" DEBUG=1 localstack start -d
 
-stop-ls:
-	localstack stop
-
-run: start-ls init deploy
+run: start init deploy
 	./run.sh
-	make stop-ls
+	make stop
 
-test: install start-ls init deploy
+test: install start init deploy
 	./run.sh;./test.sh;exit_code=`echo $$?`;\
-	make stop-ls; exit $$exit_code
+	make stop; exit $$exit_code
