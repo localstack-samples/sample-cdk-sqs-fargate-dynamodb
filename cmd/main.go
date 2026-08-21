@@ -33,22 +33,36 @@ func init() {
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
 
 	var err error
+	loadOpts := []func(*config.LoadOptions) error{}
 
-	customResolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
-		return aws.Endpoint{
-			PartitionID:   "aws",
-			URL:           "http://localstack-main:4566",
-			SigningRegion: region,
-		}, nil
-	})
+	// LocalStack injects AWS_ENDPOINT_URL (and LOCALSTACK_HOSTNAME) into ECS tasks.
+	// On real AWS these are unset, so the SDK uses the default regional endpoints.
+	if endpoint := localStackEndpoint(); endpoint != "" {
+		customResolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
+			return aws.Endpoint{
+				PartitionID:   "aws",
+				URL:           endpoint,
+				SigningRegion: region,
+			}, nil
+		})
+		loadOpts = append(loadOpts, config.WithEndpointResolverWithOptions(customResolver))
+	}
 
-	cfg, err = config.LoadDefaultConfig(context.Background(),
-		config.WithEndpointResolverWithOptions(customResolver),
-	)
+	cfg, err = config.LoadDefaultConfig(context.Background(), loadOpts...)
 	if err != nil {
 		log.Fatalf("error loading config %v", err)
 	}
 
+}
+
+func localStackEndpoint() string {
+	if endpoint := os.Getenv("AWS_ENDPOINT_URL"); endpoint != "" {
+		return endpoint
+	}
+	if host := os.Getenv("LOCALSTACK_HOSTNAME"); host != "" {
+		return fmt.Sprintf("http://%s:4566", host)
+	}
+	return ""
 }
 
 func main() {
