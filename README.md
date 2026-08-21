@@ -62,6 +62,8 @@ docker network create $NETWORK_NAME
 
 This network is required for the Fargate ECS container to be able to [use LocalStack services from the running Docker container](https://docs.localstack.cloud/references/network-troubleshooting/endpoint-url/#from-your-container).
 
+The Go worker reads `AWS_ENDPOINT_URL` (injected by LocalStack into ECS tasks) so it can call SQS and DynamoDB without hardcoding a container hostname. On real AWS those variables are unset and the SDK uses the default regional endpoints.
+
 Run the following command to start the LocalStack container with your `LOCALSTACK_AUTH_TOKEN`:
 
 ```bash
