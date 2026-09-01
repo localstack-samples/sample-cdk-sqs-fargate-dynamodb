@@ -1,0 +1,105 @@
+on:
+  workflow_dispatch:
+    inputs:
+      release-tag:
+        type: string
+        required: true
+        description: This will be the version of the release, but will also be used as 'tag' for the localstack docker image
+  push:
+    paths-ignore:
+      - 'README.md'
+    branches:
+      - main
+            
+permissions:
+  contents: write
+
+name: Create Release
+jobs:
+  release:
+    name: Create Release for Cloud Pod
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Install CDK
+        run: |
+          npm install -g aws-cdk-local aws-cdk
+          cdklocal --version
+
+      - name: Install dependencies
+        run: |
+          yarn
+
+      - name: Start LocalStack
+        env:
+          LOCALSTACK_API_KEY: ${{ secrets.LOCALSTACK_API_KEY }}
+          DNS_ADDRESS: 0
+        run: |
+          export SQS_QUEUE="sqs-fargate-queue"
+          export NETWORK_NAME="localstack-shared-net"
+          docker network create $NETWORK_NAME
+          pip install localstack awscli-local[ver1]
+          pip install terraform-local
+          docker pull localstack/localstack-pro:${{ inputs.release-tag || 'latest'}}
+          # Start LocalStack in the background
+          LS_LOG=trace LAMBDA_DOCKER_NETWORK=$NETWORK_NAME DOCKER_FLAGS="--network $NETWORK_NAME" DEBUG=1 localstack start -d
+          # Wait 30 seconds for the LocalStack container to become ready before timing out
+          echo "Waiting for LocalStack startup..."
+          localstack wait -t 15
+          echo "Startup complete"
+
+      - name: Deploy using CDK
+        run: |
+          docker build -t go-fargate .
+          cd cdk
+          npm install
+          cdklocal bootstrap aws://000000000000/us-east-1
+          cdklocal deploy --require-approval never
+      
+      # TODO run tests
+      
+      - name: Add some Dummy Data
+        run: |
+          echo "Send message to the sqs queue that should be stored in the db"
+          SQS_QUEUE="sqs-fargate-queue"
+          awslocal sqs send-message --queue $SQS_QUEUE --message-body '{"message": "hello world"}'
+          
+          echo "waiting to process the message..."
+          sleep 3
+          awslocal dynamodb scan --table-name sqs-fargate-ddb-table
+
+      - name: Save the Cloud Pod 
+        uses: HarshCasper/cloud-pod-save@v0.1.0
+        with:
+          name: 'release-pod.zip'
+          location: 'disk'
+
+      - name: Prepare Release Notes
+        run: |
+          echo "This release includes the Cloud Pod of the sample created with LocalStack Version \`${{ inputs.release-tag || 'latest'}}\`." > Release.txt
+          echo "Please be aware, that your running LocalStack instance need to be started with \`LAMBDA_DOCKER_NETWORK\`and \`DOCKER_FLAGS\`: " >> Release.txt
+          echo " * the network must have the name 'localstack-shared-net', e.g.: \`NETWORK_NAME=\"localstack-shared-net\"\`" >> Release.txt
+          echo " * start LocalStack using: \`docker network create $NETWORK_NAME 2> /dev/null; LAMBDA_DOCKER_NETWORK=\$NETWORK_NAME DOCKER_FLAGS="--network \$NETWORK_NAME" DEBUG=1 localstack start -d\`" >> Release.txt
+          echo " * use the SQS_QUEUE=\"sqs-fargate-queue\" to send further messages that will be written to DynamoDb" >> Release.txt
+          echo "" >> Release.txt
+          echo "You can download the \`release-pod.zip\` and inject it manually by running \`localstack pod load file://release-pod.zip\`, or use the Cloud Pods Launchpad." >> Release.txt
+          echo "### Cloud Pods Launchpad" >> Release.txt
+          echo "You can click the Launchpad to inject the the pod into your running LocalStack instance using the WebUI:" >> Release.txt
+          echo "[![LocalStack Pods Launchpad](https://localstack.cloud/gh/launch-pod-badge.svg)](https://app.localstack.cloud/launchpad?url=https://github.com/$GITHUB_REPOSITORY/releases/download/${{ inputs.release-tag || 'latest'}}/release-pod.zip)" >> Release.txt
+
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: "${{ inputs.release-tag || 'latest'}}"
+          name: "Cloud Pod for LocalStack Version '${{ inputs.release-tag || 'latest'}}'"
+          body_path: ./Release.txt
+          files: |
+              ./release-pod.zip
