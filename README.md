@@ -32,10 +32,10 @@ The following diagram shows the architecture that this sample application builds
 
 ## Prerequisites
 
-- A valid [LocalStack for AWS license](https://localstack.cloud/pricing). Your license provides a [`LOCALSTACK_AUTH_TOKEN`](https://docs.localstack.cloud/getting-started/auth-token/) to activate LocalStack.
-- [`localstack` CLI](https://docs.localstack.cloud/getting-started/installation/#localstack-cli).
-- [Cloud Development Kit](https://docs.localstack.cloud/user-guide/integrations/aws-cdk/) with the [`cdklocal`](https://www.npmjs.com/package/aws-cdk-local) installed.
-- [AWS CLI](https://docs.localstack.cloud/user-guide/integrations/aws-cli/) with the [`awslocal` wrapper](https://docs.localstack.cloud/user-guide/integrations/aws-cli/#localstack-aws-cli-awslocal).
+- A valid [LocalStack for AWS license](https://localstack.cloud/pricing). Your license provides a [`LOCALSTACK_AUTH_TOKEN`](https://docs.localstack.cloud/aws/getting-started/auth-token/) to activate LocalStack.
+- [`lstk` CLI](https://docs.localstack.cloud/aws/developer-tools/running-localstack/lstk/), installed via `npm install -g @localstack/lstk` or `brew install localstack/tap/lstk`.
+- [Cloud Development Kit](https://docs.localstack.cloud/user-guide/integrations/aws-cdk/), deployed via the `lstk cdk` proxy.
+- [AWS CLI](https://docs.localstack.cloud/user-guide/integrations/aws-cli/), required by `lstk aws`.
 - [Node.js](https://nodejs.org/en/download)
 
 ## Instructions
@@ -45,22 +45,11 @@ Here are instructions to deploy and test it manually step-by-step.
 
 ### Running the LocalStack container
 
-Before starting the LocalStack container, configure the following environment variables which act as configurations for the LocalStack container:
+Before starting the LocalStack container, configure the following environment variable for the SQS queue name:
 
 ```bash
 export SQS_QUEUE="sqs-fargate-queue"
-export NETWORK_NAME="localstack-shared-net"
 ```
-
-The `SQS_QUEUE` and `NETWORK_NAME` can be any name that confirms to the naming conventions of SQS and Docker networks respectively.
-
-To create a Docker network, run the following command:
-
-```bash
-docker network create $NETWORK_NAME
-```
-
-This network is required for the Fargate ECS container to be able to [use LocalStack services from the running Docker container](https://docs.localstack.cloud/references/network-troubleshooting/endpoint-url/#from-your-container).
 
 The Go worker reads `AWS_ENDPOINT_URL` (injected by LocalStack into ECS tasks) so it can call SQS and DynamoDB without hardcoding a container hostname. On real AWS those variables are unset and the SDK uses the default regional endpoints.
 
@@ -68,11 +57,10 @@ Run the following command to start the LocalStack container with your `LOCALSTAC
 
 ```bash
 export LOCALSTACK_AUTH_TOKEN=<your-auth-token>
-LAMBDA_DOCKER_NETWORK=$NETWORK_NAME DOCKER_FLAGS="--network $NETWORK_NAME" DEBUG=1 localstack start -d
+LOCALSTACK_DEBUG=1 lstk start
 ```
 
-This starts LocalStack in detached mode with the necessary configurations.
-> If you prefer to be able to follow the debug output while deploying this sample, omit the `-d` flag, then open a new terminal window and navigate to the same location as before.
+`lstk` waits until the container is ready before returning. ECS/Fargate tasks automatically join the same Docker network as the LocalStack container, so no manual Docker network setup is required.
 
 ### Build the infrastructure
 
@@ -96,8 +84,8 @@ This will navigate into the correct folder and install all necessary packages
 To deploy the sample application, we will use CDK to bootstrap the environment and deploy the infrastructure. Run the following commands:
 
 ```bash
-cdklocal bootstrap
-cdklocal deploy
+lstk cdk bootstrap
+lstk cdk deploy
 ```
 
 > While deploying the infrastructure, CDK will ask your permission — If you would rather skip the approval process, you can add the `--require-approval never` flag to the deploy command. 
@@ -107,8 +95,8 @@ cdklocal deploy
 To assert that the SQS queue and the DynamoDB have been created, run the following commands:
 
 ```bash
-awslocal sqs list-queues
-awslocal dynamodb list-tables
+lstk aws sqs list-queues
+lstk aws dynamodb list-tables
 ```
 
 You should see output similar to the following:
@@ -128,7 +116,7 @@ You should see output similar to the following:
 Next, send a message to the SQS queue. Run the following command:
 
 ```bash
-awslocal sqs send-message --queue $SQS_QUEUE --message-body '{"message": "hello world"}'
+lstk aws sqs send-message --queue $SQS_QUEUE --message-body '{"message": "hello world"}'
 ```
 
 This sends a `hello world` message to the SQS queue, which is then processed by the Fargate container. You can wait for a couple of seconds for the container to finish its task.
@@ -136,7 +124,7 @@ This sends a `hello world` message to the SQS queue, which is then processed by 
 To check if the message has been written to the DynamoDB table, run the following command:
 
 ```bash
-awslocal dynamodb scan --table-name sqs-fargate-ddb-table
+lstk aws dynamodb scan --table-name sqs-fargate-ddb-table
 ```
 
 You should see an answer similar to the following when executing the given command:

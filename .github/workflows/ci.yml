@@ -31,8 +31,11 @@ jobs:
 
       - name: Install CDK
         run: |
-          npm install -g aws-cdk-local aws-cdk
-          cdklocal --version
+          npm install -g @localstack/lstk aws-cdk
+          cdk --version
+
+      - name: Configure the AWS profile
+        run: lstk setup aws
 
       - name: Install dependencies
         run: |
@@ -41,7 +44,7 @@ jobs:
       - name: Start LocalStack
         env:
           LOCALSTACK_AUTH_TOKEN: ${{ secrets.LOCALSTACK_AUTH_TOKEN }}
-          DNS_ADDRESS: 0
+          LOCALSTACK_DNS_ADDRESS: 0
         run: |
           make test
 
